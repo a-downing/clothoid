@@ -9,6 +9,29 @@ auto lerp(auto a, auto b, auto t) {
 }
 
 // classes that represent shapes to blend conform to the clothoid::Shape concept (for get and len)
+class Line {
+    double x0, y0, x1, y1;
+
+public:
+    Line(double x0, double y0, double x1, double y1): x0(x0), y0(y0), x1(x1), y1(y1) {
+
+    }
+
+    clothoid::shape_point_t<double> get(double t) const {
+        auto dx = x1 - x0;
+        auto dy = y1 - y0;
+        auto x = x0 + t*dx;
+        auto y = y0 + t*dy;
+        return { x, y, 0, std::atan2(dy, dx) };
+    }
+
+    double len() const {
+        auto dx = x1 - x0;
+        auto dy = y1 - y0;
+        return std::sqrt(dx*dx + dy*dy);
+    }
+};
+
 class Arc {
     double r;
     double theta_0;
@@ -38,8 +61,9 @@ public:
 // just prints out x and y coordinates
 // a blank line separates shapes for plot.py
 int main() {
-    auto arc1 = Arc(0.5, 0, M_PI/2, 0, 0.5);
-    auto arc2 = Arc(1, M_PI/2, M_PI, 0, 0);
+    auto shape1 = Arc(0.5, 0, M_PI/2, 0, 0.5);
+    auto shape2 = Arc(1, M_PI/2, M_PI, 0, 0);
+    //auto shape2 = Line(0, 1, -1, 0);
 
     auto t = 0.0;
     auto dt = 1e-3;
@@ -47,7 +71,7 @@ int main() {
     // print first arc
     t = 0;
     while(t < 1.0) {
-        auto p = arc1.get(t);
+        auto p = shape1.get(t);
         std::println("{} {}", p.x, p.y);
         t += dt;
     }
@@ -56,17 +80,18 @@ int main() {
     // print second arc
     t = 0;
     while(t < 1.0) {
-        auto p = arc2.get(t);
+        auto p = shape2.get(t);
         std::println("{} {}", p.x, p.y);
         t += dt;
     }
     std::println();
 
-    auto [s1, s2, c1, c2] = clothoid::fit_biclothoid(arc1, arc2, 0.5, 1e-9);
+    const auto t1 = 0.5;
+    auto [s1, s2, c1, c2] = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-9);
 
     std::println(stderr, "s1: {}, s2: {}, c1: {}, c2: {}", s1, s2, c1, c2);
 
-    auto [x0, y0, k0, phi_0] = arc1.get(0.5);
+    auto [x0, y0, k0, phi_0] = shape1.get(t1);
 
     // print first half of bi-clothoid
     t = 0;
