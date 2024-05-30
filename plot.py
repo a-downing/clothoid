@@ -9,18 +9,28 @@ def parse_file(file_path):
             parsed_data.append(tuple(map(float, parts)))
     return parsed_data
 
+
 file_path = sys.argv[1]
 data = parse_file(file_path)
 
-ss = []
+shapes = []
 xs = []
 ys = []
 
-for s, x, y in data:
-    ss.append(s)
+for p in data:
+    if p == ():
+        shapes.append((xs, ys))
+        xs = []
+        ys = []
+        continue
+
+    x, y = p
     xs.append(x)
     ys.append(y)
+shapes.append((xs, ys))
 
-plt.plot(xs, ys)
+for xs, ys in shapes:
+    plt.plot(xs, ys)
+
 plt.gca().set_aspect('equal')
 plt.show()
