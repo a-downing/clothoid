@@ -4,7 +4,8 @@
 
 #include "clothoid.h"
 
-auto lerp(auto a, auto b, auto t) {
+template<typename T>
+T lerp(T a, T b, T t) {
     return a + t * (b - a);
 }
 
@@ -78,47 +79,39 @@ int main() {
     t = 0;
     while(t < 1.0) {
         auto p = shape1.get(t);
-        std::println("{} {}", p.x, p.y);
+        std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
-    std::println();
+    std::printf("\n");
 
     // print second arc
     t = 0;
     while(t < 1.0) {
         auto p = shape2.get(t);
-        std::println("{} {}", p.x, p.y);
+        std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
-    std::println();
+    std::printf("\n");
 
     const auto t1 = 0.5;
-    auto [s1, s2, c1, c2] = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-8);
-
-    std::println(stderr, "s1: {}, s2: {}, c1: {}, c2: {}", s1, s2, c1, c2);
-
-    auto [x0, y0, k0, phi_0] = shape1.get(t1);
+    auto bc = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-8);
 
     // print first half of bi-clothoid
     t = 0;
     while(t < 1.0) {
-        auto s = lerp(0.0, s1, t);
-        auto [x, y] = clothoid::xy(x0, y0, phi_0, k0, c1, s);
-        std::println("{} {}", x, y);
+        auto s = lerp(0.0, bc.s1, t);
+        auto [x, y] = bc.xy(s);
+        std::printf("%g %g\n", x, y);
         t += dt;
     }
-    std::println();
-
-    auto [xc, yc] = clothoid::xy(x0, y0, phi_0, k0, c1, s1);
-    auto kc = clothoid::k(k0, c1, s1);
-    auto phi_c = clothoid::phi(phi_0, k0, c1, s1);
+    std::printf("\n");
 
     // print second half
     t = 0;
     while(t < 1.0) {
-        auto s = lerp(0.0, s2, t);
-        auto [x, y] = clothoid::xy(xc, yc, phi_c, kc, c2, s);
-        std::println("{} {}", x, y);
+        auto s = lerp(bc.s1, bc.len(), t);
+        auto [x, y] = bc.xy(s);
+        std::printf("%g %g\n", x, y);
         t += dt;
     }
 

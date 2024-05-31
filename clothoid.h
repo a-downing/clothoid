@@ -9,19 +9,38 @@
 
 namespace clothoid
 {
-    auto k(auto k0, auto c, auto s) {
+    template<typename T>
+    struct shape_point_t {
+        T x;
+        T y;
+        T k;
+        T phi;
+    };
+
+    /*
+    template<typename T, typename U>
+    concept Shape = requires(T a) {
+        { a.get(U(0)) } -> std::same_as<shape_point_t<U>>;
+        { a.len() } -> std::same_as<U>;
+    };*/
+
+    template<typename T>
+    T k(T k0, T c, T s) {
         return k0 + c*s;
     }
 
-    auto phi(auto phi_0, auto k0, auto c, auto s) {
+    template<typename T>
+    T phi(T phi_0, T k0, T c, T s) {
         return phi_0 + k0*s + 0.5*c*(s*s);
     }
 
-    auto x_prime(auto phi_0, auto k0, auto c, auto s) {
+    template<typename T>
+    T x_prime(T phi_0, T k0, T c, T s) {
         return std::cos(phi_0 + k0*s + 0.5*c*s*s);
     }
 
-    auto y_prime(auto phi_0, auto k0, auto c, auto s) {
+    template<typename T>
+    T y_prime(T phi_0, T k0, T c, T s) {
         return std::sin(phi_0 + k0*s + 0.5*c*s*s);
     }
 
@@ -64,11 +83,39 @@ namespace clothoid
     }
 
     template<typename T>
-    std::array<T, 4> solve_biclothoid(T phi_0, T k0, T phi_e, T ke, T sbc) {
-        // I need to look more into the math here
-        T s1, s2, c1, c2;
+    struct biclothoid_t {
+        T x0;
+        T y0;
+        T phi_0;
+        T k0;
+        T s1;
+        T s2;
+        T c1;
 
-        std::println(stderr, "solve_biclothoid: phi_0: {}, k0: {}, phi_e: {}, ke: {}, sbc: {}", phi_0, k0, phi_e, ke, sbc);
+        T c2() const {
+            return -c1;
+        }
+
+        T len() const {
+            return s1 + s2;
+        }
+
+        std::array<T, 2> xy(T s) const {
+            if(s < s1) {
+                return clothoid::xy(x0, y0, phi_0, k0, c1, s);
+            }
+
+            auto [xc, yc] = clothoid::xy(x0, y0, phi_0, k0, c1, s1);
+            auto phi_c = clothoid::phi(phi_0, k0, c1, s1);
+            auto kc = clothoid::k(k0, c1, s1);
+
+            return clothoid::xy(xc, yc, phi_c, kc, c2(), s - s1);
+        }
+    };
+
+    template<typename T>
+    std::array<T, 4> solve_biclothoid(T phi_0, T k0, T phi_e, T ke, T sbc) {
+        T s1, s2, c1, c2;
 
         if(ke == k0) {
             s1 = sbc / 2;
@@ -87,48 +134,14 @@ namespace clothoid
 
             s2 = sbc - s1;
             c1 = (ke - k0)/(s1 - s2);
-
-            //std::println(stderr, "s1: {}", s1);
-
-            // auto SQ = sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc);
-            // auto s1a = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e - SQ)/(k0 - ke);
-            // auto c1a = -((k0 + ke)*sbc + 2*phi_0 - 2*phi_e + sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc))/std::pow(sbc, 2);
-            // auto s1b = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e + SQ)/(k0 - ke);
-            // auto c1b = -((k0 + ke)*sbc + 2*phi_0 - 2*phi_e - sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc))/std::pow(sbc, 2);
-            //
-            // auto s2a = sbc - s1a;
-            // auto s2b = sbc - s1b;
-            //
-            // std::println(stderr, "s1a: {}, s2a: {}", s1a, s2a);
-            // std::println(stderr, "s1b: {}, s2b: {}", s1b, s2b);
-            //
-            // //auto _c1a = (ke - k0)/(s1a - s2a);
-            //
-            // s1 = s1a;
-            // s2 = s2a;
-            // c1 = c1a;
         }
 
-        c2 = -c1;
-        return { s1, s2, c1, c2 };
+        return { s1, s2, c1, -c1 };
     }
 
-    template<typename T>
-    struct shape_point_t {
-        T x;
-        T y;
-        T k;
-        T phi;
-    };
-
-    template<typename T, typename U>
-    concept Shape = requires(T a) {
-        { a.get(U(0)) } -> std::same_as<shape_point_t<U>>;
-        { a.len() } -> std::same_as<U>;
-    };
-
-    template<typename T, Shape<T> Q1, Shape<T> Q2>
-    std::array<T, 4> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
+    //template<typename T, Shape<T> Q1, Shape<T> Q2>
+    template<typename T, typename Q1, typename Q2>
+    biclothoid_t<T> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
         auto [x0, y0, k0, phi_0] = q1.get(t1);
         auto sbc = q2.len();
         auto t2 = (T(1) - t1) * q1.len() / q2.len();
@@ -170,9 +183,9 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
-            //return { s1, s2, c1, c2 };
+            //return biclothoid_t { x0, y0, phi_0, k0, s1, s2, c1 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
-                return { s1, s2, c1, c2 };
+                return biclothoid_t<T>{ x0, y0, phi_0, k0, s1, s2, c1 };
             }
         }
     }
