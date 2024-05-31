@@ -22,7 +22,13 @@ public:
         auto dy = y1 - y0;
         auto x = x0 + t*dx;
         auto y = y0 + t*dy;
-        return { x, y, 0, std::atan2(dy, dx) };
+        auto phi = std::atan2(dy, dx);
+
+        if(phi < 0) {
+            phi += 2*M_PI;
+        }
+
+        return { x, y, 0,  phi };
     }
 
     double len() const {
@@ -62,8 +68,8 @@ public:
 // a blank line separates shapes for plot.py
 int main() {
     auto shape1 = Arc(0.5, 0, M_PI/2, 0, 0.5);
-    auto shape2 = Arc(1, M_PI/2, M_PI, 0, 0);
-    //auto shape2 = Line(0, 1, -1, 0);
+    //auto shape2 = Arc(1, M_PI/2, M_PI, 0, 0);
+    auto shape2 = Line(0, 1, -1, 0);
 
     auto t = 0.0;
     auto dt = 1e-3;
@@ -87,7 +93,7 @@ int main() {
     std::println();
 
     const auto t1 = 0.5;
-    auto [s1, s2, c1, c2] = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-9);
+    auto [s1, s2, c1, c2] = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-8);
 
     std::println(stderr, "s1: {}, s2: {}, c1: {}, c2: {}", s1, s2, c1, c2);
 

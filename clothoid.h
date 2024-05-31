@@ -14,7 +14,7 @@ namespace clothoid
     }
 
     auto phi(auto phi_0, auto k0, auto c, auto s) {
-        return phi_0 + k0*s + 0.5*c*s*s;
+        return phi_0 + k0*s + 0.5*c*(s*s);
     }
 
     auto x_prime(auto phi_0, auto k0, auto c, auto s) {
@@ -43,7 +43,7 @@ namespace clothoid
         T _y = T(0);
 
         for(int i = 0; i < xs.size(); i++) {
-            y += ws[i] * x_prime(phi_0, k0, c, xs[i]);
+            y += ws[i] * y_prime(phi_0, k0, c, xs[i]);
         }
 
         return y0 + y;
@@ -68,20 +68,45 @@ namespace clothoid
         // I need to look more into the math here
         T s1, s2, c1, c2;
 
+        std::println(stderr, "solve_biclothoid: phi_0: {}, k0: {}, phi_e: {}, ke: {}, sbc: {}", phi_0, k0, phi_e, ke, sbc);
+
         if(ke == k0) {
             s1 = sbc / 2;
             s2 = sbc - s1;
             c1 = -2*(k0*sbc + phi_0 - phi_e - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_0, 2) - 2*phi_0*phi_e + std::pow(phi_e, 2) + 2*(k0*phi_0 - k0*phi_e)*sbc))/std::pow(sbc, 2);
         } else {
-            auto SQ = sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc);
-            s1 = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e - SQ)/(k0 - ke);
+            // // original equations from paper
+            auto phi_delta = phi_e - phi_0;
+            auto SQ = std::pow(phi_delta, 2) - phi_delta*sbc*(k0 + ke) + (std::pow(sbc, 2))/2*(std::pow(k0, 2) + std::pow(ke, 2));
+            // equation 11 from the paper
+            s1 = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
 
-            if(s1 < 0 or s1 > sbc) {
-                s1 = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e + SQ)/(k0 - ke);
+            if(s1 < 0) {
+                s1 = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
             }
 
             s2 = sbc - s1;
             c1 = (ke - k0)/(s1 - s2);
+
+            //std::println(stderr, "s1: {}", s1);
+
+            // auto SQ = sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc);
+            // auto s1a = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e - SQ)/(k0 - ke);
+            // auto c1a = -((k0 + ke)*sbc + 2*phi_0 - 2*phi_e + sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc))/std::pow(sbc, 2);
+            // auto s1b = -0.5*(2*ke*sbc + 2*phi_0 - 2*phi_e + SQ)/(k0 - ke);
+            // auto c1b = -((k0 + ke)*sbc + 2*phi_0 - 2*phi_e - sqrt(2*(std::pow(k0, 2) + std::pow(ke, 2))*std::pow(sbc, 2) + 4*std::pow(phi_0, 2) - 8*phi_0*phi_e + 4*std::pow(phi_e, 2) + 4*((k0 + ke)*phi_0 - (k0 + ke)*phi_e)*sbc))/std::pow(sbc, 2);
+            //
+            // auto s2a = sbc - s1a;
+            // auto s2b = sbc - s1b;
+            //
+            // std::println(stderr, "s1a: {}, s2a: {}", s1a, s2a);
+            // std::println(stderr, "s1b: {}, s2b: {}", s1b, s2b);
+            //
+            // //auto _c1a = (ke - k0)/(s1a - s2a);
+            //
+            // s1 = s1a;
+            // s2 = s2a;
+            // c1 = c1a;
         }
 
         c2 = -c1;
@@ -145,6 +170,7 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
+            //return { s1, s2, c1, c2 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
                 return { s1, s2, c1, c2 };
             }
