@@ -10,6 +10,26 @@
 namespace clothoid
 {
     template<typename T>
+    struct vec2 {
+        T x;
+        T y;
+        vec2(T x, T y) : x(x), y(y) { }
+        vec2(std::array<T, 2> a) : x(a[0]), y(a[1]) { }
+
+        void operator=(const vec2 &b) {
+            x = b.x;
+            y = b.y;
+        }
+
+        T len() { return std::sqrt(x*x + y*y); }
+    };
+
+    template<typename T>
+    static vec2<T> operator-(const vec2<T> &a, const vec2<T> &b) {
+        return { a.x - b.x, a.y - b.y };
+    }
+
+    template<typename T>
     struct shape_point_t {
         T x;
         T y;
@@ -46,7 +66,7 @@ namespace clothoid
 
     template<typename T>
     T x(T x0, T phi_0, T k0, T c, T s) {
-        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P5_X, gauss_legendre::P5_W, T(0), s);
+        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P9_X, gauss_legendre::P9_W, T(0), s);
         T x = T(0);
 
         for(int i = 0; i < xs.size(); i++) {
@@ -58,7 +78,7 @@ namespace clothoid
 
     template<typename T>
     T y(T y0, T phi_0, T k0, T c, T s) {
-        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P5_X, gauss_legendre::P5_W, T(0), s);
+        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P9_X, gauss_legendre::P9_W, T(0), s);
         T _y = T(0);
 
         for(int i = 0; i < xs.size(); i++) {
@@ -70,7 +90,7 @@ namespace clothoid
 
     template<typename T>
     std::array<T, 2> xy(T x0, T y0, T phi_0, T k0, T c, T s) {
-        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P5_X, gauss_legendre::P5_W, T(0), s);
+        auto [xs, ws] = gauss_legendre::map_xw(gauss_legendre::P9_X, gauss_legendre::P9_W, T(0), s);
         T x = T(0);
         T y = T(0);
 
@@ -111,6 +131,10 @@ namespace clothoid
 
             return clothoid::xy(xc, yc, phi_c, kc, c2(), s - s1);
         }
+
+        vec2<T> p(T s) const {
+            return vec2(xy(s));
+        }
     };
 
     template<typename T>
@@ -143,8 +167,10 @@ namespace clothoid
     template<typename T, typename Q1, typename Q2>
     biclothoid_t<T> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
         auto [x0, y0, k0, phi_0] = q1.get(t1);
-        auto sbc = q2.len();
-        auto t2 = (T(1) - t1) * q1.len() / q2.len();
+        auto sbc = (T(1) - t1) * q1.len() * 2; // this is tricky
+        auto t2 = (1 - t1) * q1.len() / q2.len();
+
+        std::fprintf(stderr, "fit_biclothoid: t1: %g, sbc: %g, t2: %g\n", t1, sbc, t2);
 
         T s1, s2, c1, c2;
 
@@ -164,6 +190,8 @@ namespace clothoid
         };
 
         for(;;) {
+            std::fprintf(stderr, "fit_biclothoid: sbc: %g, t2: %g\n", sbc, t2);
+
             auto [f1, f2] = f1f2(sbc, t2);
             auto [f1_sbc_eps, f2_sbc_eps] = f1f2(sbc + eps, t2);
             auto [f1_t2_eps, f2_t2_eps] = f1f2(sbc, t2 + eps);
@@ -183,11 +211,65 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
-            //return biclothoid_t { x0, y0, phi_0, k0, s1, s2, c1 };
+            //return biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
-                return biclothoid_t<T>{ x0, y0, phi_0, k0, s1, s2, c1 };
+                return biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 };
             }
         }
+    }
+
+    // this isn't good enough. the corner isn't always the part with the largest deviation
+    template<typename T, typename Q1>
+    std::array<T, 2> corner_deviation(Q1 q1, const biclothoid_t<T> &bc, int iter) {
+        shape_point_t<T> end = q1.get(1.0);
+        auto corner = vec2(end.x, end.y);
+        T s = 0.5;
+        T ds = 0.25;
+        T d;
+
+        for(int i = 0; i < iter; i++) {
+            auto dl = (corner - bc.p(s - ds)).len();
+            auto dr = (corner - bc.p(s + ds)).len();
+            
+            if(dl < dr) {
+                s = s - ds;
+                d = dl;
+            } else {
+                s = s + ds;
+                d = dr;
+            }
+
+            std::fprintf(stderr, "i: %d, d: %g, s: %g\n", i, d, s);
+            ds *= 0.5;
+        }
+
+        return { d, s };
+    }
+
+    template<typename T, typename Q1, typename Q2>
+    biclothoid_t<T> fit_biclothoid_tol(Q1 q1, Q2 q2, int iter, T tol, T tol_eps, T eps) {
+        auto t = 1.0;
+        auto bc = fit_biclothoid(q1, q2, T(1) - t, eps);
+        auto [d, _s] = corner_deviation(q1, bc, iter);
+
+        if(d < tol) {
+            return bc;
+        }
+
+        auto alpha = 0.5;
+
+        for(;;) {
+            auto relerr = d / tol;
+            t = t / (1.0 + alpha * (relerr - 1.0));
+            bc = fit_biclothoid(q1, q2, T(1) - t, eps);
+            auto [d, _s] = corner_deviation(q1, bc, iter);
+
+            if(d < tol + tol_eps) {
+                return bc;
+            }
+        }
+
+        return bc;
     }
 }
 

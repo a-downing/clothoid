@@ -30,7 +30,10 @@ for p in data:
 shapes.append((xs, ys))
 
 for xs, ys in shapes:
-    plt.plot(xs, ys)
+    if len(xs) == 1:
+        plt.plot(xs, ys, marker="o")
+    else:
+        plt.plot(xs, ys)
 
 plt.gca().set_aspect('equal')
 plt.show()

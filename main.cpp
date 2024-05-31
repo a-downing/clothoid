@@ -70,7 +70,7 @@ public:
 int main() {
     auto shape1 = Arc(0.5, 0, M_PI/2, 0, 0.5);
     //auto shape2 = Arc(1, M_PI/2, M_PI, 0, 0);
-    auto shape2 = Line(0, 1, -1, 0);
+    auto shape2 = Line(0, 1, -0.5, 0);
 
     auto t = 0.0;
     auto dt = 1e-3;
@@ -93,8 +93,16 @@ int main() {
     }
     std::printf("\n");
 
-    const auto t1 = 0.5;
-    auto bc = clothoid::fit_biclothoid(shape1, shape2, t1, 1e-8);
+    auto bc = clothoid::fit_biclothoid(shape1, shape2, 0.9, 1e-8);
+    //auto bc = clothoid::fit_biclothoid_tol(shape1, shape2, 10, 0.01, 1e-3, 1e-8);
+
+    auto [d, s] = clothoid::corner_deviation(shape1, bc, 10);
+
+    // print the farthest point
+    clothoid::vec2<double> p = { 0, 0 };
+    p = bc.p(s);
+    std::printf("%g %g\n", p.x, p.y);
+    std::printf("\n");
 
     // print first half of bi-clothoid
     t = 0;
@@ -114,6 +122,18 @@ int main() {
         std::printf("%g %g\n", x, y);
         t += dt;
     }
+    std::printf("\n");
+
+    // print the curve midpoint
+    p = bc.p(bc.len() / 2);
+    //std::printf("%g %g\n", p.x, p.y);
+    //std::printf("\n");
+
+    // print the corner
+    auto end = shape1.get(1.0);
+    auto corner = clothoid::vec2(end.x, end.y);
+    //std::printf("%g %g\n", corner.x, corner.y);
+    //std::printf("\n");
 
     return 0;
 }
