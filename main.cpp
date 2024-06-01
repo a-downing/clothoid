@@ -1,8 +1,6 @@
 #include <string>
-#include <print>
-#include <functional>
 
-#include "clothoid.h"
+#include <clothoid.h>
 
 template<typename T>
 T lerp(T a, T b, T t) {
