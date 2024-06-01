@@ -5,18 +5,13 @@
 
 #include <Eigen/Eigen>
 
+#include <common.h>
 #include <gauss-legendre.h>
+#include <shape.h>
 #include <vec2.h>
 
 namespace clothoid
 {
-    /*
-    template<typename T, typename U>
-    concept Shape = requires(T a) {
-        { a.get(U(0)) } -> std::same_as<shape_point_t<U>>;
-        { a.len() } -> std::same_as<U>;
-    };*/
-
     template<typename T>
     T k(T k0, T c, T s) {
         return k0 + c*s;
@@ -166,9 +161,8 @@ namespace clothoid
         return { s1, s2, c1, -c1 };
     }
 
-    //template<typename T, Shape<T> Q1, Shape<T> Q2>
-    template<typename T, typename Q1, typename Q2>
-    fit_result_t<T> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
+    template<typename T>
+    fit_result_t<T> fit_biclothoid(const Shape<T> &q1, const Shape<T> &q2, T t1, T eps) {
         auto p0 = q1.point(t1);
         auto phi_0 = q1.phi(t1);
         auto k0 = q1.k(t1);
@@ -224,9 +218,23 @@ namespace clothoid
         }
     }
 
+    template<typename T>
+    std::tuple<const Shape<T>&, T> lerp(const Shape<T> &q1, const Shape<T> &q2, const fit_result_t<T> &fr, T t) {
+        auto len_q1 = q1.len() * (1.0 - fr.t1);
+        auto len_q2 = q2.len() * fr.t2;
+        auto len_tot = len_q1 + len_q2;
+        auto len_t = lerp(0.0, len_tot, t);
+
+        if(len_t > len_q1) {
+            return { q2, (len_t - len_q1) / q2.len() };
+        }
+
+        return { q1, len_t / q1.len() + fr.t1 };
+    }
+
     // this isn't good enough. the corner isn't always the part with the largest deviation
-    template<typename T, typename Q1>
-    std::array<T, 2> corner_deviation(Q1 q1, const biclothoid_t<T> &bc, int iter) {
+    template<typename T>
+    std::array<T, 2> corner_deviation(const Shape<T> &q1, const biclothoid_t<T> &bc, int iter) {
         auto end = q1.point(1.0);
         auto corner = vec2(end.x, end.y);
         T s = 0.5;
@@ -236,7 +244,7 @@ namespace clothoid
         for(int i = 0; i < iter; i++) {
             auto dl = (corner - bc.p(s - ds)).len();
             auto dr = (corner - bc.p(s + ds)).len();
-            
+
             if(dl < dr) {
                 s = s - ds;
                 d = dl;
@@ -257,8 +265,8 @@ namespace clothoid
         T s;
     };
 
-    template<typename T, typename Q1, typename Q2>
-    biclothoid_t<T> fit_biclothoid_tol(Q1 q1, Q2 q2, int iter, T tol, T tol_eps, T eps) {
+    template<typename T>
+    biclothoid_t<T> fit_biclothoid_tol(const Shape<T> &q1, const Shape<T> &q2, int iter, T tol, T tol_eps, T eps) {
         auto t = 1.0;
         auto [bc, _t1, _t2] = fit_biclothoid(q1, q2, T(1) - t, eps);
         auto [d, _s] = corner_deviation(q1, bc, iter);

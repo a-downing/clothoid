@@ -1,9 +1,8 @@
 #include <string>
 
+#include <common.h>
 #include <clothoid.h>
-
-#include "distance.h"
-#include "shape.h"
+#include <shape.h>
 
 // classes that represent shapes to blend conform to the clothoid::Shape concept (for get and len)
 class Line : public clothoid::Shape<double> {
@@ -128,12 +127,14 @@ int main() {
     //std::printf("%g %g\n", shape2.point(t2).x, shape2.point(t2).y);
     //std::printf("\n");
 
-    for(int i = 0; i <= 10; i++) {
-        auto t = 1.0 / 10 * i;
+    // test interpolating across the fitted region of two shapes for the calculation on deviation later
+    constexpr int spaces = 16;
+    for(int i = 0; i <= spaces; i++) {
+        auto t = 1.0 / spaces * i;
         auto [shape, _t] = clothoid::lerp(shape1, shape2, fr, t);
         auto p = shape.point(_t);
-        //std::printf("%g %g\n", p.x, p.y);
-        //std::printf("\n");
+        std::printf("%g %g\n", p.x, p.y);
+        std::printf("\n");
     }
 
     //auto d = clothoid::calc_distance(shape1, shape2, fr);
