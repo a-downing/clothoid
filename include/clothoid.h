@@ -118,30 +118,38 @@ namespace clothoid
     template<typename T>
     std::array<T, 4> solve_biclothoid(T phi_0, T k0, T phi_e, T ke, T sbc) {
         T s1, s2, c1, c2;
+        bool ccw = true;
+
+        auto phi_delta = phi_e - phi_0;
+
+        if(phi_delta > M_PI) {
+            phi_delta -= 2*M_PI;
+        } else if(phi_delta < -M_PI) {
+            phi_delta += 2*M_PI;
+        }
+
+        if(phi_delta < 0) {
+            ccw = false;
+        }
+
+        phi_delta = std::abs(phi_delta);
 
         if(ke == k0) {
-            std::fprintf(stderr, "ke == k0\n");
             s1 = sbc / 2;
             s2 = sbc - s1;
+
+            phi_0 = 0.0;
+            phi_e = phi_delta;
+
+            // I had to figure this out myself (in clothoid.sage). it seems like it should be simpler though
             c1 = -2*(k0*sbc + phi_0 - phi_e - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_0, 2) - 2*phi_0*phi_e + std::pow(phi_e, 2) + 2*(k0*phi_0 - k0*phi_e)*sbc))/std::pow(sbc, 2);
-
-            std::fprintf(stderr, "s1: %g\n", s1);
-            std::fprintf(stderr, "s2: %g\n", s2);
-            std::fprintf(stderr, "c1: %g\n", c1);
-
-            //c1 = -c1;
         } else {
-            // // original equations from paper
-            auto phi_delta = phi_e - phi_0;
+            // original equations from paper
+            std::fprintf(stderr, "phi_delta: %gpi\n", phi_delta/M_PI);
+
             auto SQ = std::pow(phi_delta, 2) - phi_delta*sbc*(k0 + ke) + (std::pow(sbc, 2))/2*(std::pow(k0, 2) + std::pow(ke, 2));
             // equation 11 from the paper
-            auto s1a = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
-            auto s1b = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
-
-            std::fprintf(stderr, "s1a: %g\n", s1a);
-            std::fprintf(stderr, "s1b: %g\n", s1b);
-
-            s1 = s1a;
+            auto s1 = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
 
             if(s1 < 0) {
                 s1 = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
@@ -149,6 +157,10 @@ namespace clothoid
 
             s2 = sbc - s1;
             c1 = (ke - k0)/(s1 - s2);
+        }
+
+        if(!ccw) {
+            c1 = -c1;
         }
 
         return { s1, s2, c1, -c1 };
@@ -176,7 +188,6 @@ namespace clothoid
             s2 = _s2;
             c1 = _c1;
             c2 = _c2;
-            auto phi_delta = phi_e - phi_0;
             auto [xc, yc] = xy(p0.x, p0.y, phi_0, k0, c1, s1);
             auto kc = k(k0, c1, s1);
             auto phi_c = phi(phi_0, k0, c1, s1);
@@ -206,7 +217,7 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
-            // return fit_result_t<T> { biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 }, t1, t2 };
+            //return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
                 return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
             }

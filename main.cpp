@@ -85,8 +85,13 @@ int main() {
     //auto shape2 = Arc(1, M_PI/2, M_PI, clothoid::vec2(0.0, 0.0));
     //auto shape2 = Line(clothoid::vec2(0.0, 1.0), clothoid::vec2(-0.5, -1.0));
 
-    auto shape1 = Line(clothoid::vec2(-10.0, 0.0), clothoid::vec2(0.0, 10.0));
-    auto shape2 = Line(clothoid::vec2(1.0, 10.0), clothoid::vec2(10.0, 0.0));
+    // cw
+    //auto shape1 = Line(clothoid::vec2(-10.0, 0.0), clothoid::vec2(0.0, 10.0));
+    //auto shape2 = Line(clothoid::vec2(1.0, 10.0), clothoid::vec2(10.0, 0.0));
+
+    // ccw
+    auto shape1 = Line(clothoid::vec2(10.0, 0.0), clothoid::vec2(1.0, 10.0));
+    auto shape2 = Line(clothoid::vec2(0.0, 10.0), clothoid::vec2(-10.0, 0.0));
 
     std::fprintf(stderr, "shape1.phi: %g*pi\n", shape1.phi(0.0)/M_PI);
     std::fprintf(stderr, "shape2.phi: %g*pi\n", shape2.phi(0.0)/M_PI);
