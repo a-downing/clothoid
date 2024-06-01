@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(Eigen3 REQUIRED)
 
 add_executable(clothoid main.cpp
-        clothoid.h
-        gauss-legendre.h)
+        include/clothoid.h
+        include/gauss-legendre.h
+        include/vec2.h
+)
 
-target_include_directories(clothoid PUBLIC "${EIGEN3_INCLUDE_DIRS}")
+target_include_directories(clothoid PUBLIC "./include" "${EIGEN3_INCLUDE_DIRS}")

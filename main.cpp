@@ -11,66 +11,83 @@ T lerp(T a, T b, T t) {
 
 // classes that represent shapes to blend conform to the clothoid::Shape concept (for get and len)
 class Line {
-    double x0, y0, x1, y1;
+    clothoid::vec2<double> p0;
+    clothoid::vec2<double> p1;
 
 public:
-    Line(double x0, double y0, double x1, double y1): x0(x0), y0(y0), x1(x1), y1(y1) {
+    Line(const clothoid::vec2<double> &p0, const clothoid::vec2<double> &p1): p0(p0), p1(p1) {
 
     }
 
-    clothoid::shape_point_t<double> get(double t) const {
-        auto dx = x1 - x0;
-        auto dy = y1 - y0;
-        auto x = x0 + t*dx;
-        auto y = y0 + t*dy;
-        auto phi = std::atan2(dy, dx);
+    const clothoid::vec2<double> point(double t) const {
+        return p0 + t*(p1 - p0);
+    }
+
+    double k(double t) const {
+        return 0.0;
+    }
+
+    double phi(double t) const {
+        auto v = p1 - p0;
+        auto phi = std::atan2(v.y, v.x);
 
         if(phi < 0) {
             phi += 2*M_PI;
         }
 
-        return { x, y, 0,  phi };
+        return phi;
     }
 
     double len() const {
-        auto dx = x1 - x0;
-        auto dy = y1 - y0;
-        return std::sqrt(dx*dx + dy*dy);
+        return (p1 - p0).len();
     }
 };
 
 class Arc {
     double r;
     double theta_0;
-    double theta_e;
-    double xc;
-    double yc;
+    double rads;
+    clothoid::vec2<double> c;
 
 public:
-    Arc(double r, double theta_0, double theta_e, double xc, double yc): r(r), theta_0(theta_0), theta_e(theta_e), xc(xc), yc(yc) {
+    // an arc defined by radius, center, starting angle, and positive or negative angle to the end (rads)
+    Arc(double r, double theta_0, double rads, const clothoid::vec2<double> &c): r(r), theta_0(theta_0), rads(rads), c(c) {
 
     }
 
-    clothoid::shape_point_t<double> get(double t) const {
-        auto theta = lerp(theta_0, theta_e, t);
-        auto x = xc + r * cos(theta);
-        auto y = yc + r * sin(theta);
-        auto phi_t = theta + M_PI/2;
-        auto k = 1.0 / r;
-        return { x, y, k, phi_t };
+    double theta(double t) const {
+        auto theta = std::fmod(theta_0 + lerp(0.0, rads, t), 2*M_PI);
+
+        if(theta < 0) {
+            theta += 2*M_PI;
+        }
+
+        return theta;
+    }
+
+    const clothoid::vec2<double> point(double t) const {
+        return { c.x + r * std::cos(theta(t)), c.y + r * std::sin(theta(t)) };
+    }
+
+    double k(double t) const {
+        return 1.0 / r;
+    }
+
+    double phi(double t) const {
+        return std::fmod(theta(t) + M_PI/2, 2*M_PI);
     }
 
     double len() const {
-        return r * (theta_e - theta_0);
+        return r * std::abs(rads);
     }
 };
 
 // just prints out x and y coordinates
 // a blank line separates shapes for plot.py
 int main() {
-    auto shape1 = Arc(0.5, 0, M_PI/2, 0, 0.5);
-    //auto shape2 = Arc(1, M_PI/2, M_PI, 0, 0);
-    auto shape2 = Line(0, 1, -0.5, 0);
+    auto shape1 = Arc(0.5, -0.5, M_PI/2 + 0.5, clothoid::vec2(0.0, 0.5));
+    //auto shape2 = Arc(1, M_PI/2, M_PI, clothoid::vec2(0.0, 0.0));
+    auto shape2 = Line(clothoid::vec2(0.0, 1.0), clothoid::vec2(-0.5, 0.0));
 
     auto t = 0.0;
     auto dt = 1e-3;
@@ -78,7 +95,7 @@ int main() {
     // print first arc
     t = 0;
     while(t < 1.0) {
-        auto p = shape1.get(t);
+        auto p = shape1.point(t);
         std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
@@ -87,29 +104,34 @@ int main() {
     // print second arc
     t = 0;
     while(t < 1.0) {
-        auto p = shape2.get(t);
+        auto p = shape2.point(t);
         std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
     std::printf("\n");
 
-    auto bc = clothoid::fit_biclothoid(shape1, shape2, 0.9, 1e-8);
+    auto fr = clothoid::fit_biclothoid(shape1, shape2, 0.5, 1e-8);
+    auto [bc, t1, t2] = fr;
+    auto sp = bc.p(0);
+    auto mp = bc.p(bc.s1);
+    auto ep = bc.p(bc.len());
+    // not really viable yet
     //auto bc = clothoid::fit_biclothoid_tol(shape1, shape2, 10, 0.01, 1e-3, 1e-8);
 
-    auto [d, s] = clothoid::corner_deviation(shape1, bc, 10);
-
-    // print the farthest point
-    clothoid::vec2<double> p = { 0, 0 };
-    p = bc.p(s);
-    std::printf("%g %g\n", p.x, p.y);
+    // print the start, middle, and end of the biclothoid
+    std::printf("%g %g\n", sp.x, sp.y);
+    std::printf("\n");
+    std::printf("%g %g\n", mp.x, mp.y);
+    std::printf("\n");
+    std::printf("%g %g\n", ep.x, ep.y);
     std::printf("\n");
 
     // print first half of bi-clothoid
     t = 0;
     while(t < 1.0) {
         auto s = lerp(0.0, bc.s1, t);
-        auto [x, y] = bc.xy(s);
-        std::printf("%g %g\n", x, y);
+        auto p = bc.p(s);
+        std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
     std::printf("\n");
@@ -118,22 +140,11 @@ int main() {
     t = 0;
     while(t < 1.0) {
         auto s = lerp(bc.s1, bc.len(), t);
-        auto [x, y] = bc.xy(s);
-        std::printf("%g %g\n", x, y);
+        auto p = bc.p(s);
+        std::printf("%g %g\n", p.x, p.y);
         t += dt;
     }
     std::printf("\n");
-
-    // print the curve midpoint
-    p = bc.p(bc.len() / 2);
-    //std::printf("%g %g\n", p.x, p.y);
-    //std::printf("\n");
-
-    // print the corner
-    auto end = shape1.get(1.0);
-    auto corner = clothoid::vec2(end.x, end.y);
-    //std::printf("%g %g\n", corner.x, corner.y);
-    //std::printf("\n");
 
     return 0;
 }

@@ -5,38 +5,11 @@
 
 #include <Eigen/Eigen>
 
-#include "gauss-legendre.h"
+#include <gauss-legendre.h>
+#include <vec2.h>
 
 namespace clothoid
 {
-    template<typename T>
-    struct vec2 {
-        T x;
-        T y;
-        vec2(T x, T y) : x(x), y(y) { }
-        vec2(std::array<T, 2> a) : x(a[0]), y(a[1]) { }
-
-        void operator=(const vec2 &b) {
-            x = b.x;
-            y = b.y;
-        }
-
-        T len() { return std::sqrt(x*x + y*y); }
-    };
-
-    template<typename T>
-    static vec2<T> operator-(const vec2<T> &a, const vec2<T> &b) {
-        return { a.x - b.x, a.y - b.y };
-    }
-
-    template<typename T>
-    struct shape_point_t {
-        T x;
-        T y;
-        T k;
-        T phi;
-    };
-
     /*
     template<typename T, typename U>
     concept Shape = requires(T a) {
@@ -120,21 +93,26 @@ namespace clothoid
             return s1 + s2;
         }
 
-        std::array<T, 2> xy(T s) const {
+        vec2<T> p(T s) const {
             if(s < s1) {
-                return clothoid::xy(x0, y0, phi_0, k0, c1, s);
+                auto [x, y] = clothoid::xy(x0, y0, phi_0, k0, c1, s);
+                return vec2<T>(x, y);
             }
 
             auto [xc, yc] = clothoid::xy(x0, y0, phi_0, k0, c1, s1);
             auto phi_c = clothoid::phi(phi_0, k0, c1, s1);
             auto kc = clothoid::k(k0, c1, s1);
 
-            return clothoid::xy(xc, yc, phi_c, kc, c2(), s - s1);
+            auto [x, y] = clothoid::xy(xc, yc, phi_c, kc, c2(), s - s1);
+            return vec2<T>(x, y);
         }
+    };
 
-        vec2<T> p(T s) const {
-            return vec2(xy(s));
-        }
+    template<typename T>
+    struct fit_result_t {
+        biclothoid_t<T> bc;
+        T t1;
+        T t2;
     };
 
     template<typename T>
@@ -165,8 +143,10 @@ namespace clothoid
 
     //template<typename T, Shape<T> Q1, Shape<T> Q2>
     template<typename T, typename Q1, typename Q2>
-    biclothoid_t<T> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
-        auto [x0, y0, k0, phi_0] = q1.get(t1);
+    fit_result_t<T> fit_biclothoid(Q1 q1, Q2 q2, T t1, T eps) {
+        auto p0 = q1.point(t1);
+        auto phi_0 = q1.phi(t1);
+        auto k0 = q1.k(t1);
         auto sbc = (T(1) - t1) * q1.len() * 2; // this is tricky
         auto t2 = (1 - t1) * q1.len() / q2.len();
 
@@ -174,19 +154,21 @@ namespace clothoid
 
         T s1, s2, c1, c2;
 
-        auto f1f2 = [&q2, &s1, &s2, &c1, &c2, &x0, &y0, &k0, &phi_0](T sbc, T t2) -> std::array<T, 2> {
-            auto [xe, ye, ke, phi_e] = q2.get(t2);
+        auto f1f2 = [&q2, &s1, &s2, &c1, &c2, &p0, &k0, &phi_0](T sbc, T t2) -> std::array<T, 2> {
+            auto pe = q2.point(t2);
+            auto phi_e = q2.phi(t2);
+            auto ke = q2.k(t2);
             auto [_s1, _s2, _c1, _c2] = solve_biclothoid(phi_0, k0, phi_e, ke, sbc);
             s1 = _s1;
             s2 = _s2;
             c1 = _c1;
             c2 = _c2;
             auto phi_delta = phi_e - phi_0;
-            auto [xc, yc] = xy(x0, y0, phi_0, k0, c1, s1);
+            auto [xc, yc] = xy(p0.x, p0.y, phi_0, k0, c1, s1);
             auto kc = k(k0, c1, s1);
             auto phi_c = phi(phi_0, k0, c1, s1);
-            auto [_xe, _ye] = xy(xc, yc, phi_c, kc, c2, s2);
-            return { _xe - xe, _ye - ye };
+            auto [xe, ye] = xy(xc, yc, phi_c, kc, c2, s2);
+            return { xe - pe.x, ye - pe.y };
         };
 
         for(;;) {
@@ -211,9 +193,9 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
-            //return biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 };
+            // return fit_result_t<T> { biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 }, t1, t2 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
-                return biclothoid_t<T> { x0, y0, phi_0, k0, s1, s2, c1 };
+                return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
             }
         }
     }
@@ -221,7 +203,7 @@ namespace clothoid
     // this isn't good enough. the corner isn't always the part with the largest deviation
     template<typename T, typename Q1>
     std::array<T, 2> corner_deviation(Q1 q1, const biclothoid_t<T> &bc, int iter) {
-        shape_point_t<T> end = q1.get(1.0);
+        auto end = q1.point(1.0);
         auto corner = vec2(end.x, end.y);
         T s = 0.5;
         T ds = 0.25;
@@ -239,17 +221,22 @@ namespace clothoid
                 d = dr;
             }
 
-            std::fprintf(stderr, "i: %d, d: %g, s: %g\n", i, d, s);
             ds *= 0.5;
         }
 
         return { d, s };
     }
 
+    template<typename T>
+    struct deviation_result_t {
+        T d;
+        T s;
+    };
+
     template<typename T, typename Q1, typename Q2>
     biclothoid_t<T> fit_biclothoid_tol(Q1 q1, Q2 q2, int iter, T tol, T tol_eps, T eps) {
         auto t = 1.0;
-        auto bc = fit_biclothoid(q1, q2, T(1) - t, eps);
+        auto [bc, _t1, _t2] = fit_biclothoid(q1, q2, T(1) - t, eps);
         auto [d, _s] = corner_deviation(q1, bc, iter);
 
         if(d < tol) {
@@ -261,15 +248,13 @@ namespace clothoid
         for(;;) {
             auto relerr = d / tol;
             t = t / (1.0 + alpha * (relerr - 1.0));
-            bc = fit_biclothoid(q1, q2, T(1) - t, eps);
+            auto [bc, _t1, _t2] = fit_biclothoid(q1, q2, T(1) - t, eps);
             auto [d, _s] = corner_deviation(q1, bc, iter);
 
             if(d < tol + tol_eps) {
                 return bc;
             }
         }
-
-        return bc;
     }
 }
 
