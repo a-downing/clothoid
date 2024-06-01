@@ -2,13 +2,11 @@
 
 #include <clothoid.h>
 
-template<typename T>
-T lerp(T a, T b, T t) {
-    return a + t * (b - a);
-}
+#include "distance.h"
+#include "shape.h"
 
 // classes that represent shapes to blend conform to the clothoid::Shape concept (for get and len)
-class Line {
+class Line : public clothoid::Shape<double> {
     clothoid::vec2<double> p0;
     clothoid::vec2<double> p1;
 
@@ -17,15 +15,15 @@ public:
 
     }
 
-    const clothoid::vec2<double> point(double t) const {
+    clothoid::vec2<double> point(double t) const override {
         return p0 + t*(p1 - p0);
     }
 
-    double k(double t) const {
+    double k(double t) const override {
         return 0.0;
     }
 
-    double phi(double t) const {
+    double phi(double t) const override {
         auto v = p1 - p0;
         auto phi = std::atan2(v.y, v.x);
 
@@ -36,12 +34,12 @@ public:
         return phi;
     }
 
-    double len() const {
+    double len() const override {
         return (p1 - p0).len();
     }
 };
 
-class Arc {
+class Arc : public clothoid::Shape<double> {
     double r;
     double theta_0;
     double rads;
@@ -54,7 +52,7 @@ public:
     }
 
     double theta(double t) const {
-        auto theta = std::fmod(theta_0 + lerp(0.0, rads, t), 2*M_PI);
+        auto theta = std::fmod(theta_0 + clothoid::lerp(0.0, rads, t), 2*M_PI);
 
         if(theta < 0) {
             theta += 2*M_PI;
@@ -63,19 +61,19 @@ public:
         return theta;
     }
 
-    const clothoid::vec2<double> point(double t) const {
+    clothoid::vec2<double> point(double t) const override {
         return { c.x + r * std::cos(theta(t)), c.y + r * std::sin(theta(t)) };
     }
 
-    double k(double t) const {
+    double k(double t) const override {
         return 1.0 / r;
     }
 
-    double phi(double t) const {
+    double phi(double t) const override {
         return std::fmod(theta(t) + M_PI/2, 2*M_PI);
     }
 
-    double len() const {
+    double len() const override {
         return r * std::abs(rads);
     }
 };
@@ -83,9 +81,15 @@ public:
 // just prints out x and y coordinates
 // a blank line separates shapes for plot.py
 int main() {
-    auto shape1 = Arc(0.5, -0.5, M_PI/2 + 0.5, clothoid::vec2(0.0, 0.5));
+    //auto shape1 = Arc(0.5, -0.5, M_PI/2 + 0.5, clothoid::vec2(0.0, 0.5));
     //auto shape2 = Arc(1, M_PI/2, M_PI, clothoid::vec2(0.0, 0.0));
-    auto shape2 = Line(clothoid::vec2(0.0, 1.0), clothoid::vec2(-0.5, 0.0));
+    //auto shape2 = Line(clothoid::vec2(0.0, 1.0), clothoid::vec2(-0.5, -1.0));
+
+    auto shape1 = Line(clothoid::vec2(-10.0, 0.0), clothoid::vec2(0.0, 10.0));
+    auto shape2 = Line(clothoid::vec2(1.0, 10.0), clothoid::vec2(10.0, 0.0));
+
+    std::fprintf(stderr, "shape1.phi: %g*pi\n", shape1.phi(0.0)/M_PI);
+    std::fprintf(stderr, "shape2.phi: %g*pi\n", shape2.phi(0.0)/M_PI);
 
     auto t = 0.0;
     auto dt = 1e-3;
@@ -116,7 +120,20 @@ int main() {
     // not really viable yet
     //auto bc = clothoid::fit_biclothoid_tol(shape1, shape2, 10, 0.01, 1e-3, 1e-8);
 
-    // print the start, middle, and end of the biclothoid
+    //std::printf("%g %g\n", shape2.point(t2).x, shape2.point(t2).y);
+    //std::printf("\n");
+
+    for(int i = 0; i <= 10; i++) {
+        auto t = 1.0 / 10 * i;
+        auto [shape, _t] = clothoid::lerp(shape1, shape2, fr, t);
+        auto p = shape.point(_t);
+        //std::printf("%g %g\n", p.x, p.y);
+        //std::printf("\n");
+    }
+
+    //auto d = clothoid::calc_distance(shape1, shape2, fr);
+
+    //print the start, middle, and end of the biclothoid
     std::printf("%g %g\n", sp.x, sp.y);
     std::printf("\n");
     std::printf("%g %g\n", mp.x, mp.y);
@@ -127,7 +144,7 @@ int main() {
     // print first half of bi-clothoid
     t = 0;
     while(t < 1.0) {
-        auto s = lerp(0.0, bc.s1, t);
+        auto s = clothoid::lerp(0.0, bc.s1, t);
         auto p = bc.p(s);
         std::printf("%g %g\n", p.x, p.y);
         t += dt;
@@ -137,7 +154,7 @@ int main() {
     // print second half
     t = 0;
     while(t < 1.0) {
-        auto s = lerp(bc.s1, bc.len(), t);
+        auto s = clothoid::lerp(bc.s1, bc.len(), t);
         auto p = bc.p(s);
         std::printf("%g %g\n", p.x, p.y);
         t += dt;

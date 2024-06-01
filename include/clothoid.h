@@ -120,15 +120,28 @@ namespace clothoid
         T s1, s2, c1, c2;
 
         if(ke == k0) {
+            std::fprintf(stderr, "ke == k0\n");
             s1 = sbc / 2;
             s2 = sbc - s1;
             c1 = -2*(k0*sbc + phi_0 - phi_e - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_0, 2) - 2*phi_0*phi_e + std::pow(phi_e, 2) + 2*(k0*phi_0 - k0*phi_e)*sbc))/std::pow(sbc, 2);
+
+            std::fprintf(stderr, "s1: %g\n", s1);
+            std::fprintf(stderr, "s2: %g\n", s2);
+            std::fprintf(stderr, "c1: %g\n", c1);
+
+            //c1 = -c1;
         } else {
             // // original equations from paper
             auto phi_delta = phi_e - phi_0;
             auto SQ = std::pow(phi_delta, 2) - phi_delta*sbc*(k0 + ke) + (std::pow(sbc, 2))/2*(std::pow(k0, 2) + std::pow(ke, 2));
             // equation 11 from the paper
-            s1 = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
+            auto s1a = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
+            auto s1b = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
+
+            std::fprintf(stderr, "s1a: %g\n", s1a);
+            std::fprintf(stderr, "s1b: %g\n", s1b);
+
+            s1 = s1a;
 
             if(s1 < 0) {
                 s1 = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
