@@ -138,11 +138,11 @@ namespace clothoid
             s1 = sbc / 2;
             s2 = sbc - s1;
 
-            phi_0 = 0.0;
-            phi_e = phi_delta;
-
             // I had to figure this out myself (in clothoid.sage). it seems like it should be simpler though
-            c1 = -2*(k0*sbc + phi_0 - phi_e - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_0, 2) - 2*phi_0*phi_e + std::pow(phi_e, 2) + 2*(k0*phi_0 - k0*phi_e)*sbc))/std::pow(sbc, 2);
+            //c1 = -2*(k0*sbc + phi_0 - phi_e - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_0, 2) - 2*phi_0*phi_e + std::pow(phi_e, 2) + 2*(k0*phi_0 - k0*phi_e)*sbc))/std::pow(sbc, 2);
+
+            // simplifies with phi_0 being zero and phi_e being phi_delta
+            c1 = -2*(k0*sbc - phi_delta - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_delta, 2) + 2*(-k0*phi_delta)*sbc))/std::pow(sbc, 2);
         } else {
             // original equations from paper
             std::fprintf(stderr, "phi_delta: %gpi\n", phi_delta/M_PI);
