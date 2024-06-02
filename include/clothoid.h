@@ -80,6 +80,16 @@ namespace clothoid
         T s2;
         T c1;
 
+        void print() const {
+            std::fprintf(stderr, "x0: %g\n", x0);
+            std::fprintf(stderr, "y0: %g\n", y0);
+            std::fprintf(stderr, "phi_0: %g\n", phi_0);
+            std::fprintf(stderr, "k0: %g\n", k0);
+            std::fprintf(stderr, "s1: %g\n", s1);
+            std::fprintf(stderr, "s2: %g\n", s2);
+            std::fprintf(stderr, "c1: %g\n", c1);
+        }
+
         T c2() const {
             return -c1;
         }
@@ -111,22 +121,11 @@ namespace clothoid
     };
 
     template<typename T>
-    std::array<T, 4> solve_biclothoid(T phi_0, T k0, T phi_e, T ke, T sbc) {
+    std::array<T, 4> solve_biclothoid(T phi_delta, T k0, T ke, T sbc) {
         T s1, s2, c1, c2;
-        bool ccw = true;
+        bool ccw = phi_delta > 0 ? true : false;
 
-        auto phi_delta = phi_e - phi_0;
-
-        if(phi_delta > M_PI) {
-            phi_delta -= 2*M_PI;
-        } else if(phi_delta < -M_PI) {
-            phi_delta += 2*M_PI;
-        }
-
-        if(phi_delta < 0) {
-            ccw = false;
-        }
-
+        std::fprintf(stderr, "solve_biclothoid: phi_delta: %gpi, k0: %g, ke: %g, sbc: %g\n", phi_delta/M_PI, k0, ke, sbc);
         phi_delta = std::abs(phi_delta);
 
         if(ke == k0) {
@@ -140,14 +139,21 @@ namespace clothoid
             c1 = -2*(k0*sbc - phi_delta - sqrt(std::pow(k0, 2)*std::pow(sbc, 2) + std::pow(phi_delta, 2) + 2*(-k0*phi_delta)*sbc))/std::pow(sbc, 2);
         } else {
             // original equations from paper
-            std::fprintf(stderr, "phi_delta: %gpi\n", phi_delta/M_PI);
-
             auto SQ = std::pow(phi_delta, 2) - phi_delta*sbc*(k0 + ke) + (std::pow(sbc, 2))/2*(std::pow(k0, 2) + std::pow(ke, 2));
             // equation 11 from the paper
-            auto s1 = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
+            auto s1a = (phi_delta - ke*sbc - sqrt(SQ))/(k0 - ke);
+            auto s1b = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
+
+            std::fprintf(stderr, "solve_biclothoid: s1a: %.17g, s1b: %.17g\n", s1a, s1b);
+
+            s1 = s1a;
 
             if(s1 < 0) {
                 s1 = (phi_delta - ke*sbc + sqrt(SQ))/(k0 - ke);
+            }
+
+            if(is_close(s1, sbc)) {
+                s1 = sbc;
             }
 
             s2 = sbc - s1;
@@ -158,26 +164,29 @@ namespace clothoid
             c1 = -c1;
         }
 
-        return { s1, s2, c1, -c1 };
+        c2 = -c1;
+
+        std::fprintf(stderr, "solve_biclothoid: s1: %g, s2: %g, c1: %g, c2: %g\n", s1, s2, c1, c2);
+
+        return { s1, s2, c1, c2 };
     }
 
     template<typename T>
-    fit_result_t<T> fit_biclothoid(const Shape<T> &q1, const Shape<T> &q2, T t1, T eps) {
+    fit_result_t<T> fit_biclothoid(const Shape<T> &q1, const Shape<T> &q2, T t1, T eps, int max_iter = 100) {
         auto p0 = q1.point(t1);
         auto phi_0 = q1.phi(t1);
         auto k0 = q1.k(t1);
-        auto sbc = (T(1) - t1) * q1.len() * 2; // this is tricky
+        auto sbc = 2.0; //(T(1) - t1) * q1.len() * 2; // this is tricky
         auto t2 = (1 - t1) * q1.len() / q2.len();
 
-        std::fprintf(stderr, "fit_biclothoid: t1: %g, sbc: %g, t2: %g\n", t1, sbc, t2);
+        std::fprintf(stderr, "fit_biclothoid: t1: %g, sbc: %g, t2: %g, p0.x: %g, p0.y: %g\n", t1, sbc, t2, p0.x, p0.y);
 
         T s1, s2, c1, c2;
 
-        auto f1f2 = [&q2, &s1, &s2, &c1, &c2, &p0, &k0, &phi_0](T sbc, T t2) -> std::array<T, 2> {
+        auto f1f2 = [&q1, &q2, &s1, &s2, &c1, &c2, &p0, &k0, &t1, &phi_0](T sbc, T t2) -> std::array<T, 2> {
             auto pe = q2.point(t2);
-            auto phi_e = q2.phi(t2);
             auto ke = q2.k(t2);
-            auto [_s1, _s2, _c1, _c2] = solve_biclothoid(phi_0, k0, phi_e, ke, sbc);
+            auto [_s1, _s2, _c1, _c2] = solve_biclothoid(Shape<T>::phi_delta(q1, q2, t1, t2), k0, ke, sbc);
             s1 = _s1;
             s2 = _s2;
             c1 = _c1;
@@ -189,17 +198,19 @@ namespace clothoid
             return { xe - pe.x, ye - pe.y };
         };
 
-        for(;;) {
-            std::fprintf(stderr, "fit_biclothoid: sbc: %g, t2: %g\n", sbc, t2);
-
+        for(int i = 0; i < max_iter; i++) {
             auto [f1, f2] = f1f2(sbc, t2);
             auto [f1_sbc_eps, f2_sbc_eps] = f1f2(sbc + eps, t2);
             auto [f1_t2_eps, f2_t2_eps] = f1f2(sbc, t2 + eps);
+
+            std::fprintf(stderr, "fit_biclothoid loop: i: %d, sbc: %g, t2: %g, f1: %g, f2: %g\n", i, sbc, t2, f1, f2);
 
             auto df1_dsbc = (f1_sbc_eps - f1) / eps;
             auto df2_dsbc = (f2_sbc_eps - f2) / eps;
             auto df1_dt2 = (f1_t2_eps - f1) / eps;
             auto df2_dt2 = (f2_t2_eps - f2) / eps;
+
+            std::fprintf(stderr, "fit_biclothoid loop: df1_dsbc: %g, df2_dsbc: %g, df1_dt2: %g, df2_dt2: %g\n", df1_dsbc, df2_dsbc, df1_dt2, df2_dt2);
 
             auto J = Eigen::Matrix<T, 2, 2>({
                 {df1_dsbc, df1_dt2},
@@ -211,11 +222,12 @@ namespace clothoid
             sbc -= x(0, 0);
             t2 -= x(1, 0);
 
-            //return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
             if(std::abs(f1) < eps && std::abs(f2) < eps) {
                 return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
             }
         }
+
+        return fit_result_t<T> { biclothoid_t<T> { p0.x, p0.y, phi_0, k0, s1, s2, c1 }, t1, t2 };
     }
 
     template<typename T>
